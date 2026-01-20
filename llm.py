@@ -1,259 +1,121 @@
 import subprocess
-
 import time
-
 import os
-
 import threading
-
 import queue
 
+# 파일 경로 설정
+MNN_BUILD_PATH = "/data/data/com.termux/files/home/MNN/build"
+MNN_DEMO = "./llm_demo"
+MODEL_CONFIG = "/data/data/com.termux/files/home/MNN/model/config.json"
 
-
-# ==========================================
-
-# 설정 (경로를 본인 환경에 맞게 수정하세요)
-
-# ==========================================
-
-MNN_BUILD_PATH = "/data/data/com.termux/files/home/MNN/build" # 예시 경로
-
-MNN_DEMO_EXE = "./llm_demo" # 또는 ./cli_demo (실제 파일명 확인 필요)
-
-MODEL_CONFIG = "/data/data/com.termux/files/home/MNN/model/config.json" # 모델 설정 파일 경로
-
-
-
-# MNN CLI가 사용자 입력을 기다릴 때 띄우는 프롬프트 문자열 (매우 중요)
-
-# 실행해보고 "> " 인지 "User: " 인지 확인 후 수정해야 합니다.
-
+# 실행시 나오는 문자열을 보고 정지 여부 판단
 WAIT_PROMPT = "User: " 
 
-
-
 class LocalLLM:
-
+    # 인자는 각 경로, 데모, 설정파일
     def __init__(self, cwd, exe, config):
-
+        # llm_demo보고 프로그램 시작
         self.process = subprocess.Popen(
-
+            # llm_demo, config.json 파일 넣기
             [exe, config],
-
+            # 경로 잡음
             cwd=cwd,
-
+            # 각각 입력, 출력, 에러 연결
             stdin=subprocess.PIPE,
-
             stdout=subprocess.PIPE,
-
             stderr=subprocess.PIPE,
-
+            # 비트가 아닌 문자열로 대화
             text=True,
-
             bufsize=0  # 버퍼링 끄기 (실시간 입출력 위해 필수)
-
         )
 
+        # 데이터 저장용 큐 생성
         self.output_queue = queue.Queue()
-
+        # 작동여부 판단 변수
         self.running = True
 
-        
-
         # 출력을 실시간으로 읽어오는 스레드 시작
-
         self.reader_thread = threading.Thread(target=self._read_output)
-
         self.reader_thread.daemon = True
-
         self.reader_thread.start()
 
-        
-
         # 초기 로딩 대기 (모델 로드 완료 메시지까지 기다림)
-
-        print("모델 로딩 중...")
-
+        # print("loading...")
         self.wait_for_ready()
 
-        print("모델 로드 완료!")
-
-
-
+    # MNN의 출력을 한글자씩 받아들임
+    # 스레드로 사용
     def _read_output(self):
-
-        """서브프로세스의 출력을 한 글자씩 읽어서 큐에 담음"""
-
         while self.running:
-
+            # char로 먼저 읽어오고, 문자열이면 큐에 삽입
             char = self.process.stdout.read(1)
-
             if not char:
-
                 break
-
             self.output_queue.put(char)
 
-
-
+    # 입력 대기 프롬프트인 User: 가 나올 때 까지 대기
     def wait_for_ready(self):
-
-        """입력 대기 프롬프트가 나올 때까지 출력을 소모"""
-
+        # 문자열 생성용 버퍼
         buffer = ""
-
         while True:
-
+            # 문자열 저장용 큐가 비지 않았을 때
             if not self.output_queue.empty():
-
                 char = self.output_queue.get()
-
                 buffer += char
+                # print(char, end="", flush=True)
 
-                print(char, end="", flush=True) # 디버깅용 출력
-
-                
-
-                # 프롬프트 감지 시 루프 종료
-
+                # 받은 문자열에 User:가 있는지 확인
                 if buffer.endswith(WAIT_PROMPT):
-
                     return
 
+            # 큐가 비었을 시 대기
             else:
-
                 time.sleep(0.01)
 
-
-
+    # 채팅 입력
     def chat(self, user_input):
-
-        """명령을 보내고 답변을 받아옴"""
-
         # 1. 입력 전송
-
         self.process.stdin.write(user_input + "\n")
-
         self.process.stdin.flush()
 
-        
-
         # 2. 답변 수신
-
         response_text = ""
-
         buffer = ""
-
         start_time = time.time()
 
-        
-
+        # 문자열 끝부분 확인해 끝났다면 실제 답변과 분리
         while True:
-
             if not self.output_queue.empty():
-
                 char = self.output_queue.get()
-
                 buffer += char
 
-                
-
                 # 프롬프트가 나오면 답변이 끝난 것임
-
                 if buffer.endswith(WAIT_PROMPT):
-
                     # 프롬프트 문자열을 제외한 부분이 실제 답변
-
                     response_text = buffer[:-len(WAIT_PROMPT)].strip()
-
                     break
-
             else:
-
                 # 타임아웃 또는 대기
-
                 time.sleep(0.01)
-
-                
-
+        # 답변이 저장된 response_text 반환
         return response_text
 
 
-
+    # 프로그램 종료
     def close(self):
-
+        # 작동 여부 변수 거짓
         self.running = False
+        # 프로세스 종료
         self.process.terminate()
 
-         # 1단계: 프로그램 내부의 종료 명령어 전송 (가장 깔끔함)
-
-        # MNN 데모가 특정 종료 키워드를 지원한다면 사용하는 게 좋습니다.
-
-        # 보통 모르기 때문에 빈 줄을 보내서 입력 대기를 풀거나 exit를 시도합니다.
-
-        # try:
-
-            # if self.process.poll() is None:  # 프로세스가 아직 살아있다면
-
-                # self.process.stdin.write("\n")  # 입력 대기 상태 깨우기
-
-                # self.process.stdin.flush()
-
-        # except (BrokenPipeError, OSError):
-
-            # pass
-
-        print("LLM 프로세스가 완전히 종료되었습니다.")
-
-
-
-# ==========================================
-
-# Termux API 함수들
-
-# ==========================================
-
-def stt():
-
-    """Termux 마이크 입력"""
-
-    print("\n[듣는 중...]")
-
-    # termux-speech-to-text 명령 실행 및 결과 캡처
-
-    try:
-
-        result = subprocess.check_output(["termux-speech-to-text"], text=True)
-
-        return result.strip()
-
-    except subprocess.CalledProcessError:
-
-        return ""
-
-
-
-def tts(text):
-
-    """Termux 스피커 출력"""
-
-    print(f"\n[말하는 중]: {text}")
-
-    subprocess.run(["termux-tts-speak", text])
-
-
-
-# ==========================================
-
-# 메인 실행 루프
-
-# ==========================================
+        # print("LLM 프로세스가 완전히 종료되었습니다.")
 
 def main():
 
     # LLM 초기화
 
-    llm = LocalLLM(cwd=MNN_BUILD_PATH, exe=MNN_DEMO_EXE, config=MODEL_CONFIG)
+    llm = LocalLLM(cwd=MNN_BUILD_PATH, exe=MNN_DEMO, config=MODEL_CONFIG)
 
     
 
