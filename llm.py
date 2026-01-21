@@ -101,66 +101,36 @@ class LocalLLM:
         # 답변이 저장된 response_text 반환
         return response_text
 
-
     # 프로그램 종료
     def close(self):
         # 작동 여부 변수 거짓
         self.running = False
         # 프로세스 종료
         self.process.terminate()
-
         # print("LLM 프로세스가 완전히 종료되었습니다.")
 
 def main():
-
     # LLM 초기화
-
     llm = LocalLLM(cwd=MNN_BUILD_PATH, exe=MNN_DEMO, config=MODEL_CONFIG)
-
-    
-
     try:
-
         while True:
-
             # 1. 음성 인식 (STT)
-
-            # user_text = stt()
-
-            
-
+            # user_text = stt()          
             # if not user_text:
-
                 # print("입력이 감지되지 않았습니다. 다시 시도합니다.")
-
                 # continue
 
-                
-
             # if user_text.lower() in ["종료", "exit", "stop"]:
-
                 # break
-
-
-
             # print(f"인식된 명령: {user_text}")
 
-
-
             # 2. LLM 추론 (Qwen3)
-
             # MNN이 C++ 바이너리라 프롬프트 템플릿을 직접 씌워야 할 수도 있음 (모델에 따라 다름)
-
             # Qwen은 보통 채팅 포맷이 필요 없거나 MNN 데모가 알아서 처리함.
-
             answer = llm.chat("좋은아침! 아침식사 메뉴 추천해줄 수 있어? 3줄 이내로 설명해줘")
 
-
-
             # 3. 음성 출력 (TTS)
-
             # 답변에서 불필요한 시스템 메시지가 있다면 여기서 .replace() 등으로 제거
-
             tts(answer)
             llm.close()
             break
