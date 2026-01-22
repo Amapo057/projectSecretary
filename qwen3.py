@@ -13,14 +13,27 @@ MODEL_CONFIG = "/data/data/com.termux/files/home/MNN/model/config.json"
 WAIT_PROMPT = "User: " 
 
 class LocalLLM:
-    # 인자는 각 경로, 데모, 설정파일
+    # 인자는 각 경로, 실행파일, 설정파일
     def __init__(self, cwd, exe, config):
+        # 1. 재료(설정)만 저장해 둠 (아직 실행 안 함)
+        self.cwd = cwd
+        self.exe = exe
+        self.config = config
+        
+        # 나중에 쓸 변수들 미리 선언 (None으로)
+        self.process = None
+        self.output_queue = None
+        self.running = False
+        self.reader_thread = None
+
+    # 모델 시작
+    def start(self):
         # llm_demo보고 프로그램 시작
         self.process = subprocess.Popen(
             # llm_demo, config.json 파일 넣기
-            [exe, config],
+            [self.exe, self.config],
             # 경로 잡음
-            cwd=cwd,
+            cwd=self.cwd,
             # 각각 입력, 출력, 에러 연결
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -131,7 +144,6 @@ def main():
 
             # 3. 음성 출력 (TTS)
             # 답변에서 불필요한 시스템 메시지가 있다면 여기서 .replace() 등으로 제거
-            tts(answer)
             llm.close()
             break
 

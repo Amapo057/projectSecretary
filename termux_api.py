@@ -15,8 +15,6 @@ def stt():
 
 def tts(text):
 
-    """Termux 스피커 출력"""
-
     print(f"\n[말하는 중]: {text}")
 
     subprocess.run(["termux-tts-speak", text])

@@ -1,4 +1,4 @@
-import llm
+import qwen3
 import termux_api
 import weather
 
@@ -59,5 +59,10 @@ def main():
         f"오늘 최저기온은 {today_weather['temperature_2m_min'][1]}, 최고기온은 {today_weather['temperature_2m_max'][1]}, 체감기온은 {today_weather['apparent_temperature_min'][1]}입니다.")
 
     print(weather_repoert)
+    llm = qwen3.LocalLLM(MNN_BUILD_PATH, MNN_DEMO, MODEL_CONFIG)
+    llm.start()
+    answer = llm.chat(f"당신은 능숙한 기상 리포터입니다.\n{weather_repoert}\n위의 정보를 이용해 오늘 날씨, 어제 날씨와의 차이, 오늘 복장추천을 제시하세요.")
+    termux_api.tts(answer)
+
 if __name__ == '__main__':
     main()
